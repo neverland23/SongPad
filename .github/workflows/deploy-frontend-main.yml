@@ -18,17 +18,17 @@ jobs:
           node-version: 18
 
       - name: Build with Production API URL
+        working-directory: frontend
         run: |
-          cd frontend
           echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL_PROD }}" >> .env
           npm install
           npm run build
 
       - name: Deploy to Vercel (Production)
+        working-directory: frontend
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROD_PROJECT_ID }}
         run: |
-          cd frontend
           npx vercel deploy --yes --prod --token ${{ secrets.VERCEL_TOKEN }}
 
