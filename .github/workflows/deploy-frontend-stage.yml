@@ -23,12 +23,11 @@ jobs:
           echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL_STAGE }}" >> .env
           npm install
           npm run build
-
+      
       - name: Deploy to Vercel (Stage)
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_STAGE_PROJECT_ID }}
         run: |
           cd frontend
-          npx vercel deploy \
-            --token ${{ secrets.VERCEL_TOKEN }} \
-            --project-id ${{ secrets.VERCEL_STAGE_PROJECT_ID }} \
-            --org-id ${{ secrets.VERCEL_ORG_ID }} \
-            --prod
+          npx vercel deploy --yes --token ${{ secrets.VERCEL_TOKEN }}
