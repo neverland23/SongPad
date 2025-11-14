@@ -27,7 +27,8 @@ jobs:
       - name: Deploy to Vercel (Production)
         run: |
           cd frontend
-          npx vercel --token ${{ secrets.VERCEL_TOKEN }} \
-                     --project ${{ secrets.VERCEL_PROJECT_ID }} \
-                     --org ${{ secrets.VERCEL_ORG_ID }} \
-                     --prod
+          npx vercel deploy \
+            --token ${{ secrets.VERCEL_TOKEN }} \
+            --project-id ${{ secrets.VERCEL_PROD_PROJECT_ID }} \
+            --org-id ${{ secrets.VERCEL_ORG_ID }} \
+            --prod

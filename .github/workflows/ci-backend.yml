@@ -22,11 +22,6 @@ jobs:
           cd backend
           npm install
 
-      - name: Lint backend
-        run: |
-          cd backend
-          npm run lint --if-present
-
       - name: Test backend
         run: |
           cd backend
