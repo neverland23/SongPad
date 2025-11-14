@@ -1,0 +1,33 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [ dev, stage, main ]
+    paths:
+      - "backend/**"
+
+jobs:
+  backend-ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          npm install
+
+      - name: Lint backend
+        run: |
+          cd backend
+          npm run lint --if-present
+
+      - name: Test backend
+        run: |
+          cd backend
+          npm test --if-present
