@@ -31,7 +31,7 @@ npm install
 npm run dev
 ```
 
-Backend runs at http://localhost:5000
+Backend runs at http://localhost:3000
 
 ## Frontend – development (Vite)
 
@@ -43,7 +43,7 @@ npm run dev
 
 Open http://localhost:5173
 
-All /api/* requests are proxied to http://localhost:5000 via vite.config.js.
+All /api/* requests are proxied to http://localhost:3000 via vite.config.js.
 
 
 ## Frontend – production build served by backend
@@ -58,7 +58,7 @@ npm install
 NODE_ENV=production npm start
 ```
 
-Open http://localhost:5000/
+Open http://localhost:3000/
  – the backend serves the built React SPA, and React Router handles all client-side routes.
 
 

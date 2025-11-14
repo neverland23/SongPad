@@ -222,7 +222,7 @@ Tracks notification feed:
 
 - Computes `API_BASE_URL` from:
   - `VITE_API_BASE_URL` env, or
-  - `window.location.origin` (falls back to `http://localhost:5000/api`).
+  - `window.location.origin` (falls back to `http://localhost:3000/api`).
 - Handles:
   - JSON requests/responses with error normalization.
   - Auth header (`Authorization: Bearer <token>`).
@@ -274,13 +274,13 @@ The new React + Redux frontend calls these endpoints via `apiClient.js` and thun
 
 ```env
 # backend/.env.example
-CLIENT_ORIGIN=http://localhost:5173,http://localhost:5000
+CLIENT_ORIGIN=http://localhost:5173,http://localhost:3000
 ```
 
 The list is comma-separated, and CORS middleware allows:
 
 - Frontend dev server (Vite) at `http://localhost:5173`.
-- Backend static hosting at `http://localhost:5000` (if serving built assets).
+- Backend static hosting at `http://localhost:3000` (if serving built assets).
 
 ### SPA Hosting
 
@@ -337,7 +337,7 @@ npm install
 npm run dev
 ```
 
-The backend starts at `http://localhost:5000`.
+The backend starts at `http://localhost:3000`.
 
 ### Frontend (dev mode)
 
@@ -349,7 +349,7 @@ npm run dev
 
 Open the Vite dev server (default): `http://localhost:5173`
 
-Thanks to the Vite dev proxy (`vite.config.js`), any `/api/*` calls are forwarded to the backend at `http://localhost:5000`.
+Thanks to the Vite dev proxy (`vite.config.js`), any `/api/*` calls are forwarded to the backend at `http://localhost:3000`.
 
 ### Frontend (production build + backend hosting)
 
@@ -365,7 +365,7 @@ NODE_ENV=production npm start
 
 The backend will serve the compiled SPA from `../frontend/dist`.
 
-- Browse to `http://localhost:5000/` for the React app.
+- Browse to `http://localhost:3000/` for the React app.
 - Client-side routing handles `/login`, `/register`, `/dashboard/*`, `/order`, etc.
 
 ---

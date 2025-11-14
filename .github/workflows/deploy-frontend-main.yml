@@ -7,16 +7,28 @@ on:
       - "frontend/**"
 
 jobs:
-  deploy-frontend-prod:
+  deploy-frontend-production:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
 
-      - name: Deploy to Vercel (PRODUCTION)
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Build with Production API URL
         run: |
           cd frontend
-          npx vercel --token ${{ secrets.VERCEL_TOKEN }} \
-                     --project ${{ secrets.VERCEL_PROD_PROJECT_ID }} \
-                     --org ${{ secrets.VERCEL_ORG_ID }} \
-                     --prod
+          echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL_PROD }}" >> .env
+          npm install
+          npm run build
+
+      - name: Deploy to Vercel (Production)
+        run: |
+          cd frontend
+          npx vercel deploy \
+            --token ${{ secrets.VERCEL_TOKEN }} \
+            --project-id ${{ secrets.VERCEL_PROD_PROJECT_ID }} \
+            --org-id ${{ secrets.VERCEL_ORG_ID }} \
+            --prod

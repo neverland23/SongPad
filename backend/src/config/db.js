@@ -1,8 +1,14 @@
 const mongoose = require('mongoose');
 
+const mongoUri = {
+  development: process.env.MONGO_URI_DEV,
+  staging: process.env.MONGO_URI_STAGE,
+  production: process.env.MONGO_URI_PRODUCTION,
+}[process.env.NODE_ENV];
+
 const connectDB = async () => {
   try {
-    const uri = process.env.MONGO_URI || 'mongodb://localhost:27017/voip_dashboard';
+    const uri = mongoUri || 'mongodb://localhost:27017/voip_dashboard';
     await mongoose.connect(uri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
