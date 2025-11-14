@@ -1,0 +1,21 @@
+name: CI Checks
+
+on:
+  pull_request:
+    branches: [ dev, stage, main ]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test --if-present
