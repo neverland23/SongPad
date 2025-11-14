@@ -7,9 +7,18 @@ to React 18 + Redux Toolkit + React Router, and aligning the backend with the ne
 
 ## Top-level Structure
 
-- `backend/` – Node.js + Express API, MongoDB models, Telnyx integration.
-- `frontend/` – React 18 + Vite SPA with Redux Toolkit state management.
-- `frontend/legacy/` – Original static HTML + JS + CSS implementation (kept for reference).
+- `backend/` – Node.js + Express API, MongoDB models, Telnyx integration (Vercel serverless).
+- `frontend/` – React 18 + Vite SPA with Redux Toolkit state management (Vercel hosted).
+- `.github/`
+   └── `workflows`
+       └── `ci-cd.yml`
+
+## CI/CD Pipeline Overview
+
+`dev`	– No deploy / optional preview	none
+`stage`	– Staging environment	https://staging.yourapp.vercel.app
+`main` – Production environment	https://yourapp.vercel.app
+
 
 ---
 
@@ -373,3 +382,5 @@ The backend will serve the compiled SPA from `../frontend/dist`.
   - Use stricter, configurable CORS
   - Provide a global error handler and a consistent JSON error contract
 - Added ESLint, Prettier, and TypeScript configuration to improve maintainability and future-proof the codebase.
+
+
