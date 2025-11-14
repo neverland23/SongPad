@@ -27,7 +27,6 @@ jobs:
         working-directory: backend
         run: |
           npm ci
-          npm run build   # or whatever your backend build is
 
       - name: Deploy to Vercel (Staging)
         uses: amondnet/vercel-action@v20

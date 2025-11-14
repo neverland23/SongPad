@@ -27,7 +27,6 @@ jobs:
         working-directory: backend
         run: |
           npm ci
-          npm run build
 
       - name: Deploy to Vercel (Production)
         uses: amondnet/vercel-action@v20
