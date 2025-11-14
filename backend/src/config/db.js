@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 
 const mongoUri = {
-  development: process.env.MONGO_URI_DEV,
-  staging: process.env.MONGO_URI_STAGE,
-  production: process.env.MONGO_URI_PRODUCTION,
+  development: process.env.MONGO_DEV_URI,
+  staging: process.env.MONGO_STAGE_URI,
+  production: process.env.MONGO_PRODUCTION_URI,
 }[process.env.NODE_ENV];
 
 const connectDB = async () => {
