@@ -22,53 +22,71 @@ const app = express();
 // Connect DB
 connectDB();
 
-// Middleware
-const rawOrigins =
-  process.env.CLIENT_ORIGIN ||
-  'http://localhost:5173,http://localhost:3000';
+// ------------------------------
+// ✅ FIXED CORS CONFIGURATION
+// ------------------------------
+const allowedOrigins = [
+  "http://localhost:5173",                // Vite
+  "http://localhost:3000",                // React dev
+  "https://song-pad.vercel.app",          // PRODUCTION frontend
+  "https://stage-song-pad.vercel.app"     // STAGING frontend (optional)
+];
 
-const allowedOrigins = rawOrigins.split(',').map((o) => o.trim()).filter(Boolean);
-
+// CORS middleware MUST be before routes
 app.use(
   cors({
-    origin(origin, callback) {
-      // Allow mobile apps / curl etc with no origin
-      if (!origin) {
-        return callback(null, true);
-      }
+    origin: function (origin, callback) {
+      // Allow mobile apps / curl / Postman
+      if (!origin) return callback(null, true);
+
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-      // eslint-disable-next-line no-console
-      console.warn('Blocked CORS origin:', origin);
-      return callback(new Error('Not allowed by CORS'));
+
+      console.warn("❌ Blocked by CORS:", origin);
+      return callback(new Error("Not allowed by CORS"));
     },
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
     credentials: true,
-  }),
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
 );
 
+// Support OPTIONS preflight
+app.options("*", cors());
+
+// ------------------------------
+// Middleware
+// ------------------------------
 app.use(express.json());
 app.use(morgan('dev'));
 
-// API routes
+// ------------------------------
+// API ROUTES
+// ------------------------------
 app.use('/api/auth', authRoutes);
 app.use('/api/numbers', numberRoutes);
 app.use('/api/voice', voiceRoutes);
 app.use('/api/sms', smsRoutes);
 app.use('/api/notifications', notificationRoutes);
 
-// Telnyx webhooks
+// ------------------------------
+// WEBHOOKS (no CORS needed)
+// ------------------------------
 app.post('/webhooks/voice', voiceWebhookHandler);
 app.post('/webhooks/sms', smsWebhookHandler);
 
-// In production we serve the React SPA build (if present)
+// ------------------------------
+// Serve React Frontend (if exists)
+// ------------------------------
 const frontendDist = path.join(__dirname, '..', 'frontend', 'dist');
 const hasFrontendDist = fs.existsSync(frontendDist);
 
 if (hasFrontendDist) {
+  console.log("Serving frontend from:", frontendDist);
+
   app.use(express.static(frontendDist));
 
-  // Let React Router handle all non-API, non-webhook routes
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/webhooks')) {
       return next();
@@ -77,16 +95,18 @@ if (hasFrontendDist) {
   });
 }
 
-// Fallback 404 for unmatched API routes
+// ------------------------------
+// Fallback for API 404
+// ------------------------------
 app.use('/api', (req, res) => {
   res.status(404).json({ message: 'API endpoint not found' });
 });
 
-// Global error handler
+// Global Error Handler
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`VOIP backend server listening on port ${PORT}`);
+  console.log(`🚀 VOIP backend server running on port ${PORT}`);
 });
