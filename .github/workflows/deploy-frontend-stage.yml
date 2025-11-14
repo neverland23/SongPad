@@ -1,0 +1,22 @@
+name: Deploy Frontend (Stage)
+
+on:
+  push:
+    branches: [ stage ]
+    paths:
+      - "frontend/**"
+
+jobs:
+  deploy-frontend-stage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Deploy to Vercel (STAGE)
+        run: |
+          cd frontend
+          npx vercel --token ${{ secrets.VERCEL_TOKEN }} \
+                     --project ${{ secrets.VERCEL_STAGE_PROJECT_ID }} \
+                     --org ${{ secrets.VERCEL_ORG_ID }} \
+                     --prod
