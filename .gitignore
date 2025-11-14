@@ -1,1 +1,50 @@
+# --- Node modules (root + subfolders) ---
 **/node_modules/
+
+# --- Environment variables ---
+.env
+.env.*      # exclude all environment files
+!.env.example
+
+# --- Logs ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+logs/
+*.log
+
+# --- Build / Output folders (Vercel builds automatically) ---
+build/
+dist/
+.next/
+out/
+.tmp/
+temp/
+tmp/
+
+# --- React build (CRA, Vite, Parcel, etc.) ---
+/frontend/build/
+/frontend/dist/
+
+# --- Express compiled output (Babel / TypeScript) ---
+/backend/build/
+/backend/dist/
+
+# --- Caches ---
+.cache/
+.next/cache/
+turbo/
+*.tsbuildinfo
+
+# --- OS + Editor trash ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# --- Vercel and Netlify metadata ---
+.vercel/
+.netlify/
