@@ -22,5 +22,5 @@ npm run dev
 
 Then open:
 
-- `http://localhost:5000/` for the landing page
-- `http://localhost:5000/login.html` etc.
+- `http://localhost:3000/` for the landing page
+- `http://localhost:3000/login.html` etc.

@@ -13,10 +13,21 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Deploy to Vercel (STAGE)
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Build with Stage API URL
+        run: |
+          cd frontend
+          echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL_STAGE }}" >> .env
+          npm install
+          npm run build
+
+      - name: Deploy to Vercel (Stage)
         run: |
           cd frontend
           npx vercel --token ${{ secrets.VERCEL_TOKEN }} \
-                     --project ${{ secrets.VERCEL_STAGE_PROJECT_ID }} \
+                     --project ${{ secrets.VERCEL_PROJECT_ID }} \
                      --org ${{ secrets.VERCEL_ORG_ID }} \
                      --prod

@@ -25,7 +25,7 @@ connectDB();
 // Middleware
 const rawOrigins =
   process.env.CLIENT_ORIGIN ||
-  'http://localhost:5173,http://localhost:5000';
+  'http://localhost:5173,http://localhost:3000';
 
 const allowedOrigins = rawOrigins.split(',').map((o) => o.trim()).filter(Boolean);
 
