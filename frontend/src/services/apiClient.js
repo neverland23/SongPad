@@ -87,10 +87,23 @@ export const api = {
 
   // Numbers
   getCountries: () => request('/numbers/countries'),
-  searchNumbers: ({ countryCode }) =>
-    request(`/numbers/search${buildQuery({ countryCode })}`),
+  searchNumbers: ({ countryCode, features, type, limit }) => {
+    const params = { countryCode };
+    if (features && Array.isArray(features) && features.length > 0) {
+      // For multiple features, we'll send them as comma-separated or multiple params
+      params.features = features.join(',');
+    }
+    if (type) {
+      params.type = type;
+    }
+    if (limit) {
+      params.limit = limit;
+    }
+    return request(`/numbers/search${buildQuery(params)}`);
+  },
   orderNumber: (payload) => request('/numbers/order', { method: 'POST', body: payload }),
   getMyNumbers: () => request('/numbers/mine'),
+  deleteNumber: (phoneNumberId) => request(`/numbers/${phoneNumberId}`, { method: 'DELETE' }),
 
   // Voice
   initiateCall: (payload) => request('/voice/call', { method: 'POST', body: payload }),
@@ -107,4 +120,6 @@ export const api = {
     request(`/notifications${buildQuery(params)}`),
   markNotificationRead: (id) =>
     request(`/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllNotificationsRead: () =>
+    request('/notifications/mark-all-read', { method: 'PATCH' }),
 };

@@ -82,19 +82,41 @@ const getCountries = async (req, res) => {
 };
 
 const searchNumbers = async (req, res) => {
-  const { countryCode } = req.query;
+  const { countryCode, features, type, limit } = req.query;
 
   if (!countryCode) {
     return res.status(400).json({ message: 'countryCode query param is required' });
   }
 
   try {
+    const params = {
+      'filter[country_code]': countryCode,
+    };
+
+    // Add features filter if provided
+    if (features) {
+      const featuresArray = typeof features === 'string' ? features.split(',') : features;
+      if (Array.isArray(featuresArray) && featuresArray.length > 0) {
+        // Telnyx API accepts features as comma-separated string or multiple filter params
+        params['filter[features]'] = featuresArray.join(',');
+      }
+    }
+
+    // Add type filter if provided
+    if (type) {
+      params['filter[phone_number_type]'] = type;
+    }
+
+    // Add limit if provided
+    if (limit) {
+      const limitNum = parseInt(limit, 10);
+      if (!isNaN(limitNum) && limitNum > 0) {
+        params['filter[limit]'] = limitNum;
+      }
+    }
+
     const response = await telnyxClient.get('/available_phone_numbers', {
-      params: {
-        'filter[country_code]': countryCode,
-        'filter[features]': 'sms,voice',
-        'filter[limit]': 20,
-      },
+      params,
     });
 
     const data = response.data && response.data.data ? response.data.data : [];
@@ -108,7 +130,7 @@ const searchNumbers = async (req, res) => {
 };
 
 const orderNumber = async (req, res) => {
-  const { phoneNumber, countryCode, monthlyCost } = req.body;
+  const { phoneNumber, countryCode, monthlyCost, rawNumberDetails } = req.body;
 
   if (!phoneNumber) {
     return res.status(400).json({ message: 'phoneNumber is required' });
@@ -132,6 +154,7 @@ const orderNumber = async (req, res) => {
       capabilities: [],
       monthlyCost: monthlyCost || 0,
       rawTelnyxData: telnyxData,
+      rawNumberDetails: rawNumberDetails || null,
     });
 
     await Notification.create({
@@ -150,8 +173,119 @@ const orderNumber = async (req, res) => {
 };
 
 const listMyNumbers = async (req, res) => {
-  const numbers = await PhoneNumber.find({ user: req.user._id }).sort({ createdAt: -1 });
-  res.json(numbers);
+  try {
+    // Fetch numbers from database filtered by user ID
+    const numbers = await PhoneNumber.find({ user: req.user._id })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Transform database records to match the UI format
+    const transformedNumbers = numbers.map((num) => {
+      // Use rawNumberDetails if available (contains full phone number details from search)
+      // Otherwise fall back to rawTelnyxData or construct from basic fields
+      const rawNumberDetails = num.rawNumberDetails || {};
+      
+      // Extract features - could be array of objects {name: "voice"} or array of strings
+      let features = rawNumberDetails.features || [];
+      if (features.length > 0 && typeof features[0] === 'string') {
+        features = features.map((f) => ({ name: f }));
+      }
+      if (features.length === 0 && num.capabilities && num.capabilities.length > 0) {
+        features = num.capabilities.map((cap) => ({ name: cap }));
+      }
+      
+      return {
+        _id: num._id,
+        phone_number: num.phoneNumber,
+        phone_number_id: num.telnyxNumberId,
+        region_information: rawNumberDetails.region_information || [],
+        features: features,
+        cost_information: rawNumberDetails.cost_information || {
+          monthly_cost: num.monthlyCost?.toString() || '0',
+          currency: 'USD',
+        },
+        status: 'active', // Default status for database records
+        created_at: num.createdAt,
+        createdAt: num.createdAt,
+      };
+    });
+
+    res.json(transformedNumbers);
+  } catch (err) {
+    console.error('List my numbers error', err);
+    res.status(500).json({ message: 'Error fetching your numbers' });
+  }
+};
+
+const deleteNumber = async (req, res) => {
+  const { phoneNumber } = req.params;
+
+  if (!phoneNumber) {
+    return res.status(400).json({ message: 'phoneNumber is required' });
+  }
+
+  try {
+    // First, fetch the phone number resource using phoneNumber as filter parameter
+    const phoneNumbersResponse = await telnyxClient.get('/phone_numbers', {
+      params: {
+        'filter[phone_number]': phoneNumber,
+      },
+    });
+
+    const phoneNumbers = phoneNumbersResponse.data?.data || [];
+    
+    if (phoneNumbers.length === 0) {
+      return res.status(404).json({ message: 'Phone number not found' });
+    }
+
+    // Get the phone number resource (should be first result)
+    const phoneNumberResource = phoneNumbers[0];
+
+    // Check the status from the response
+    const status = phoneNumberResource.status;
+
+    // If the status is not active, return error message
+    if (status !== 'active') {
+      return res.status(400).json({ 
+        message: 'This phone number is still not assigned to your account, after it\'s assigned, you can delete it.' 
+      });
+    }
+
+    // Get the id from the response
+    const phoneNumberResourceId = phoneNumberResource.id;
+
+    if (!phoneNumberResourceId) {
+      return res.status(400).json({ message: 'Phone number ID not found in response' });
+    }
+
+    // If status is active, use that id to continue to delete phone number
+    await telnyxClient.delete(`/phone_numbers/${phoneNumberResourceId}`);
+
+    // Also remove from database
+    await PhoneNumber.deleteOne({
+      user: req.user._id,
+      phoneNumber: phoneNumber,
+    });
+
+    await Notification.create({
+      user: req.user._id,
+      type: 'number',
+      title: 'Number deleted',
+      message: `Phone number has been deleted`,
+      data: { phoneNumber, phoneNumberResourceId },
+    });
+
+    res.json({ message: 'Phone number deleted successfully' });
+  } catch (err) {
+    console.error('Telnyx delete number error', err.response?.data || err.message);
+    
+    // Handle specific error cases
+    if (err.response?.status === 404) {
+      return res.status(404).json({ message: 'Phone number not found' });
+    }
+    
+    res.status(500).json({ message: 'Error deleting phone number from Telnyx' });
+  }
 };
 
 module.exports = {
@@ -159,4 +293,5 @@ module.exports = {
   searchNumbers,
   orderNumber,
   listMyNumbers,
+  deleteNumber,
 };

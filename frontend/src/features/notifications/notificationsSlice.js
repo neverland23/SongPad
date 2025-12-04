@@ -31,6 +31,20 @@ export const markNotificationRead = createAsyncThunk(
   },
 );
 
+export const markAllNotificationsRead = createAsyncThunk(
+  'notifications/markAllRead',
+  async (_, thunkAPI) => {
+    try {
+      await api.markAllNotificationsRead();
+      // Refetch notifications after marking all as read
+      thunkAPI.dispatch(fetchNotifications());
+      return true;
+    } catch (err) {
+      return thunkAPI.rejectWithValue(err.message || 'Failed to mark all notifications as read');
+    }
+  },
+);
+
 const notificationsSlice = createSlice({
   name: 'notifications',
   initialState,
@@ -55,6 +69,10 @@ const notificationsSlice = createSlice({
         if (idx >= 0) {
           state.items[idx] = updated;
         }
+      })
+      .addCase(markAllNotificationsRead.fulfilled, (state) => {
+        // Mark all items as read in state
+        state.items = state.items.map((n) => ({ ...n, read: true }));
       });
   },
 });
