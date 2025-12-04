@@ -1,6 +1,9 @@
 # --- Node modules (root + subfolders) ---
 **/node_modules/
 
+backend/.env
+backend/.env.example
+
 # --- Logs ---
 npm-debug.log*
 yarn-debug.log*
