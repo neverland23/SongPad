@@ -13,6 +13,50 @@ import {
 import Loader from '../../components/ui/Loader';
 import ErrorMessage from '../../components/ui/ErrorMessage';
 
+// Helper functions to extract data from API response
+const getRegionInfo = (number, regionType) => {
+  if (!number.region_information || !Array.isArray(number.region_information)) {
+    return 'N/A';
+  }
+  const region = number.region_information.find((r) => r.region_type === regionType);
+  return region ? region.region_name : 'N/A';
+};
+
+const getCountry = (number) => getRegionInfo(number, 'country_code');
+const getState = (number) => getRegionInfo(number, 'state');
+const getRateCenter = (number) => getRegionInfo(number, 'rate_center');
+
+const getFeatures = (number) => {
+  if (!number.features || !Array.isArray(number.features)) {
+    return [];
+  }
+  return number.features.map((f) => f.name);
+};
+
+const hasFeature = (number, featureName) => {
+  return getFeatures(number).includes(featureName);
+};
+
+const getMonthlyCost = (number) => {
+  if (!number.cost_information || !number.cost_information.monthly_cost) {
+    return '0.00';
+  }
+  return parseFloat(number.cost_information.monthly_cost).toFixed(2);
+};
+
+const getUpfrontCost = (number) => {
+  if (!number.cost_information || !number.cost_information.upfront_cost) {
+    return null;
+  }
+  return parseFloat(number.cost_information.upfront_cost).toFixed(2);
+};
+
+const formatFeatures = (number) => {
+  const features = getFeatures(number);
+  const voiceSms = features.filter((f) => f === 'voice' || f === 'sms');
+  return voiceSms.length > 0 ? voiceSms.join(', ') : 'None';
+};
+
 function NumbersPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -37,11 +81,12 @@ function NumbersPage() {
     dispatch(searchNumbers(selectedCountry));
   };
 
-  const handleOrder = (num) => {
+  const handleOrder = (number) => {
     const params = new URLSearchParams({
-      phoneNumber: num.phoneNumber,
-      countryCode: num.countryCode || '',
-      monthlyCost: num.monthlyCost ?? 0,
+      phoneNumber: number.phone_number || '',
+      countryCode: getCountry(number) || '',
+      monthlyCost: getMonthlyCost(number),
+      upfrontCost: getUpfrontCost(number) || '0',
     }).toString();
     navigate(`/order?${params}`);
   };
@@ -82,26 +127,59 @@ function NumbersPage() {
               <tr>
                 <th>Phone Number</th>
                 <th>Country</th>
+                <th>State</th>
+                <th>City / Rate Center</th>
+                <th>Features (Voice, SMS)</th>
+                <th>Fax</th>
                 <th>Monthly Cost</th>
-                <th>Capabilities</th>
-                <th />
+                <th>Upfront Cost</th>
+                <th className="text-center">Action</th>
               </tr>
             </thead>
             <tbody>
               {availableNumbers.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center text-slate-400 small">
+                  <td colSpan={9} className="text-center text-slate-400 small">
                     No numbers loaded yet. Choose a country and search.
                   </td>
                 </tr>
               )}
-              {availableNumbers.map((num) => (
-                <tr key={num.phoneNumber}>
-                  <td>{num.phoneNumber}</td>
-                  <td>{num.countryCode}</td>
-                  <td>${(num.monthlyCost || 0).toFixed(2)}/month</td>
-                  <td>{(num.capabilities || []).join(', ')}</td>
-                  <td className="text-end">
+              {availableNumbers.map((num, index) => (
+                <tr key={num.phone_number || num.phoneNumber || index}>
+                  <td className="fw-semibold">{num.phone_number || num.phoneNumber || 'N/A'}</td>
+                  <td>{getCountry(num)}</td>
+                  <td>{getState(num)}</td>
+                  <td>{getRateCenter(num)}</td>
+                  <td>
+                    <span className="badge bg-info text-dark me-1">
+                      {formatFeatures(num)}
+                    </span>
+                  </td>
+                  <td>
+                    {hasFeature(num, 'fax') ? (
+                      <span className="badge bg-secondary">Yes</span>
+                    ) : (
+                      <span className="text-muted">No</span>
+                    )}
+                  </td>
+                  <td>
+                    <span className="fw-semibold">
+                      ${getMonthlyCost(num)}/month
+                    </span>
+                    {num.cost_information?.currency && (
+                      <span className="text-muted small ms-1">
+                        {num.cost_information.currency}
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    {getUpfrontCost(num) ? (
+                      <span className="fw-semibold">${getUpfrontCost(num)}</span>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </td>
+                  <td className="text-center">
                     <button
                       type="button"
                       className="btn btn-sm btn-success"
