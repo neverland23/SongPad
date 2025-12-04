@@ -75,7 +75,7 @@ function NumbersPage() {
       <ErrorMessage message={error} />
       <div className="mb-4">
         <h5>Available Numbers</h5>
-        {loadingAvailable && <Loader label="Searching numbers..." />}
+        {loadingAvailable && <Loader label="Searching phone numbers..." />}
         <div className="table-responsive">
           <table className="table table-dark table-striped align-middle" id="numbersTable">
             <thead>
