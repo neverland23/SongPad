@@ -10,6 +10,7 @@ const initialState = {
   loadingMyNumbers: false,
   ordering: false,
   deleting: false,
+  enablingVoice: false,
   error: null,
 };
 
@@ -57,6 +58,18 @@ export const orderNumber = createAsyncThunk(
       return data;
     } catch (err) {
       return thunkAPI.rejectWithValue(err.message || 'Failed to order number');
+    }
+  },
+);
+
+export const enableVoiceCall = createAsyncThunk(
+  'numbers/enableVoiceCall',
+  async (phoneNumberId, thunkAPI) => {
+    try {
+      await api.enableVoiceCall(phoneNumberId);
+      return phoneNumberId;
+    } catch (err) {
+      return thunkAPI.rejectWithValue(err.message || 'Failed to enable voice call');
     }
   },
 );
@@ -148,6 +161,19 @@ const numbersSlice = createSlice({
       })
       .addCase(deleteNumber.rejected, (state, action) => {
         state.deleting = false;
+        state.error = action.payload || action.error.message;
+      })
+      // enable voice call
+      .addCase(enableVoiceCall.pending, (state) => {
+        state.enablingVoice = true;
+        state.error = null;
+      })
+      .addCase(enableVoiceCall.fulfilled, (state, action) => {
+        state.enablingVoice = false;
+        // The number list will be refreshed after enabling voice
+      })
+      .addCase(enableVoiceCall.rejected, (state, action) => {
+        state.enablingVoice = false;
         state.error = action.payload || action.error.message;
       });
   },
