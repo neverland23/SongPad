@@ -9,6 +9,7 @@ const phoneNumberSchema = new mongoose.Schema(
     capabilities: [{ type: String }],
     monthlyCost: { type: Number },
     rawTelnyxData: { type: Object },
+    rawNumberDetails: { type: Object },
   },
   { timestamps: true }
 );

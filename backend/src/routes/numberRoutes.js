@@ -6,11 +6,13 @@ const {
   searchNumbers,
   orderNumber,
   listMyNumbers,
+  deleteNumber,
 } = require('../controllers/numberController');
 
 router.get('/countries', authMiddleware, getCountries);
 router.get('/search', authMiddleware, searchNumbers);
 router.post('/order', authMiddleware, orderNumber);
 router.get('/mine', authMiddleware, listMyNumbers);
+router.delete('/:phoneNumber', authMiddleware, deleteNumber);
 
 module.exports = router;
