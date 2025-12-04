@@ -42,8 +42,8 @@ function LandingPage() {
             </p>
           </div>
           <div className="col-md-6">
-            <div className="bg-slate-800 rounded-3 p-4 shadow">
-              <h2 className="h5 mb-3">What you can do</h2>
+            <div className="bg-slate-800 rounded-3 p-4 shadow" style={{ 'border': 'solid'}}>
+              <h2 className="h5 mb-3">What you can do ?</h2>
               <ul className="list-unstyled text-slate-300 small mb-0">
                 <li className="mb-2">• Global Phone Numbers</li>
                 <li className="mb-2">• Voice Phone Calls</li>
