@@ -9,6 +9,7 @@ const initialState = {
   loadingAvailable: false,
   loadingMyNumbers: false,
   ordering: false,
+  deleting: false,
   error: null,
 };
 
@@ -26,9 +27,9 @@ export const fetchCountries = createAsyncThunk(
 
 export const searchNumbers = createAsyncThunk(
   'numbers/searchNumbers',
-  async (countryCode, thunkAPI) => {
+  async (searchParams, thunkAPI) => {
     try {
-      const data = await api.searchNumbers({ countryCode });
+      const data = await api.searchNumbers(searchParams);
       return data;
     } catch (err) {
       return thunkAPI.rejectWithValue(err.message || 'Failed to search numbers');
@@ -56,6 +57,18 @@ export const orderNumber = createAsyncThunk(
       return data;
     } catch (err) {
       return thunkAPI.rejectWithValue(err.message || 'Failed to order number');
+    }
+  },
+);
+
+export const deleteNumber = createAsyncThunk(
+  'numbers/deleteNumber',
+  async (phoneNumberId, thunkAPI) => {
+    try {
+      await api.deleteNumber(phoneNumberId);
+      return phoneNumberId;
+    } catch (err) {
+      return thunkAPI.rejectWithValue(err.message || 'Failed to delete number');
     }
   },
 );
@@ -119,6 +132,22 @@ const numbersSlice = createSlice({
       })
       .addCase(orderNumber.rejected, (state, action) => {
         state.ordering = false;
+        state.error = action.payload || action.error.message;
+      })
+      // delete number
+      .addCase(deleteNumber.pending, (state) => {
+        state.deleting = true;
+        state.error = null;
+      })
+      .addCase(deleteNumber.fulfilled, (state, action) => {
+        state.deleting = false;
+        // Remove deleted number from list
+        state.myNumbers = state.myNumbers.filter(
+          (num) => num.phone_number_id !== action.payload && num.phone_number !== action.payload
+        );
+      })
+      .addCase(deleteNumber.rejected, (state, action) => {
+        state.deleting = false;
         state.error = action.payload || action.error.message;
       });
   },

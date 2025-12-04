@@ -4,6 +4,8 @@ import { useAppDispatch, useAppSelector } from '../../app/hooks';
 import { logout, selectCurrentUser } from '../../features/auth/authSlice';
 import {
   fetchNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
   selectNotifications,
   selectUnreadCount,
 } from '../../features/notifications/notificationsSlice';
@@ -37,6 +39,16 @@ function AppHeader() {
     }
   };
 
+  const handleMarkAllAsRead = async () => {
+    await dispatch(markAllNotificationsRead());
+  };
+
+  const handleNotificationClick = async (notification) => {
+    if (!notification.read) {
+      await dispatch(markNotificationRead(notification._id));
+    }
+  };
+
   return (
     <header className="d-flex justify-content-between align-items-center border-bottom border-slate-700 px-4 py-3">
       <div>
@@ -60,12 +72,29 @@ function AppHeader() {
             )}
           </button>
           {open && (
-            <div id="notificationsDropdown" className="mt-2">
-              <div className="p-2 border-bottom border-slate-700 d-flex justify-content-between">
-                <span className="fw-semibold">Recent</span>
-                <span className="text-slate-400 small">
-                  {notifications.length ? `${notifications.length} items` : 'No notifications'}
-                </span>
+            <div id="notificationsDropdown" className="show">
+              <div className="p-2 border-bottom border-slate-700">
+                <div className="d-flex justify-content-between align-items-center mb-1">
+                  <span className="fw-semibold">Recent</span>
+                  <span className="text-slate-400 small">
+                    {notifications.length ? `${notifications.length} items` : 'No notifications'}
+                  </span>
+                </div>
+                {unreadCount > 0 && (
+                  <div className="mt-1 text-right">
+                    <a
+                      href="#"
+                      className="text-decoration-none text-primary"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleMarkAllAsRead();
+                      }}
+                      style={{ fontSize: '0.7rem' }}
+                    >
+                      Mark all as read
+                    </a>
+                  </div>
+                )}
               </div>
               <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
                 {notifications.length === 0 && (
@@ -77,6 +106,8 @@ function AppHeader() {
                     className={`p-2 border-bottom border-slate-800 small ${
                       n.read ? 'text-slate-400' : 'fw-semibold'
                     }`}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => handleNotificationClick(n)}
                   >
                     <div>{n.title}</div>
                     <div className="text-slate-400">{n.message}</div>
