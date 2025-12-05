@@ -185,9 +185,31 @@ const voiceWebhookHandler = async (req, res) => {
     } else if (eventType === 'call.hangup' || eventType === 'call.call-hangup') {
       if (log) {
         log.status = 'completed';
+        
+        // Try to get duration from various possible field names
+        let durationSeconds = null;
         if (payload.duration_secs) {
-          log.durationSeconds = payload.duration_secs;
+          durationSeconds = payload.duration_secs;
+        } else if (payload.duration) {
+          durationSeconds = payload.duration;
+        } else if (payload.call_duration) {
+          durationSeconds = payload.call_duration;
+        } else if (payload.call_duration_secs) {
+          durationSeconds = payload.call_duration_secs;
         }
+        
+        // If duration is not provided by Telnyx, calculate it from timestamps
+        if (!durationSeconds && log.createdAt) {
+          const now = new Date();
+          const callStartTime = new Date(log.createdAt);
+          durationSeconds = Math.floor((now - callStartTime) / 1000); // Convert milliseconds to seconds
+        }
+        
+        // Save duration if we have it
+        if (durationSeconds !== null && durationSeconds >= 0) {
+          log.durationSeconds = durationSeconds;
+        }
+        
         await log.save();
       }
       
@@ -195,7 +217,7 @@ const voiceWebhookHandler = async (req, res) => {
       if (log?.user && global.wsServer) {
         global.wsServer.sendToUser(log.user.toString(), {
           type: 'CALL_ENDED',
-          data: { callControlId, from, to },
+          data: { callControlId, from, to, durationSeconds: log?.durationSeconds },
         });
       }
     } else if (eventType === 'call.failed' || eventType === 'call.call-failed') {
@@ -269,10 +291,21 @@ const hangupCall = async (req, res) => {
   try {
     await telnyxClient.post(`/calls/${callControlId}/actions/hangup`);
     
-    // Update call log
+    // Update call log with duration
     const log = await CallLog.findOne({ callControlId });
     if (log) {
       log.status = 'completed';
+      
+      // Calculate duration from call start time if not already set
+      if (!log.durationSeconds && log.createdAt) {
+        const now = new Date();
+        const callStartTime = new Date(log.createdAt);
+        const durationSeconds = Math.floor((now - callStartTime) / 1000);
+        if (durationSeconds >= 0) {
+          log.durationSeconds = durationSeconds;
+        }
+      }
+      
       await log.save();
     }
     

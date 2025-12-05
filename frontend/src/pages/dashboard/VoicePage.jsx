@@ -55,8 +55,6 @@ function VoicePage() {
 
   // WebSocket for real-time events
   const handleWebSocketMessage = useCallback((message) => {
-    console.log("web socket message: ", message);
-    console.log("activeCall: ", activeCall);
     if (message.type === 'INBOUND_CALL') {
       setIncomingCall({
         callControlId: message.data.callControlId,
@@ -72,7 +70,6 @@ function VoicePage() {
       });
     } else if (message.type === 'CALL_ANSWERED' && activeCall?.callControlId === message.data.callControlId) {
       setCallState('active');
-      console.log("call answered message data: ", message.data);
       startCallTimer();
     } else if (message.type === 'CALL_ENDED' && activeCall?.callControlId === message.data.callControlId) {
       setCallState('idle');
@@ -154,7 +151,6 @@ function VoicePage() {
   };
 
   const handleEndCall = async () => {
-    console.log("activeCall: ", activeCall);
     if (activeCall) {
       try {
         await hangupCall(activeCall.callControlId);

@@ -25,7 +25,6 @@ class WebSocketServer {
         const userId = url.searchParams.get('userId');
         
         if (userId) {
-          console.log(`WebSocket connected for user: ${userId}`);
           if (!this.clients.has(userId)) {
             this.clients.set(userId, new Set());
           }
