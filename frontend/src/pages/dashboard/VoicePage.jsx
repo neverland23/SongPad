@@ -27,6 +27,7 @@ function VoicePage() {
   const [incomingCall, setIncomingCall] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
   const [callTimer, setCallTimer] = useState(null);
+  const [callStartTime, setCallStartTime] = useState(null);
   const [dialpadOpen, setDialpadOpen] = useState(false);
   const [fromNumber, setFromNumber] = useState('');
 
@@ -38,6 +39,7 @@ function VoicePage() {
     makeCall,
     answerCall,
     hangupCall,
+    declineCall,
     sendDTMF,
     toggleMute,
     setCallState,
@@ -63,6 +65,9 @@ function VoicePage() {
     } else if (message.type === 'CALL_ANSWERED' && activeCall?.callControlId === message.data.callControlId) {
       setCallState('active');
       startCallTimer();
+    } else if (message.type === 'CALL_DECLINED') {
+      // Refresh call logs when call is declined via webhook
+      dispatch(fetchCallLogs());
     } else if (message.type === 'CALL_ENDED' && activeCall?.callControlId === message.data.callControlId) {
       setCallState('idle');
       stopCallTimer();
@@ -102,10 +107,18 @@ function VoicePage() {
   // Get call logs for selected phone number
   const filteredLogs = useMemo(() => {
     if (!selectedPhoneNumber) return [];
+
     return logs
       .filter(log => {
         const otherNumber = log.direction === 'outbound' ? log.to : log.from;
         return otherNumber === selectedPhoneNumber;
+      })
+      .map(log => {
+        // Check if hangup_cause is 'user_busy' and replace status with 'declined'
+        if (log.rawTelnyxData?.hangup_cause === 'user_busy') {
+          return { ...log, status: 'declined' };
+        }
+        return log;
       })
       .sort((a, b) => {
         const timeA = new Date(a.createdAt || a.created_at || 0).getTime();
@@ -121,12 +134,18 @@ function VoicePage() {
     }
   }, [phoneNumberList, selectedPhoneNumber]);
 
-  // Call duration timer
+  // Call duration timer - updates frequently for smooth display
   const startCallTimer = () => {
+    const startTime = Date.now();
+    setCallStartTime(startTime);
     setCallDuration(0);
+    
     const timer = setInterval(() => {
-      setCallDuration((prev) => prev + 1);
-    }, 1000);
+      const elapsed = Math.floor((Date.now() - startTime) / 1000); // Calculate elapsed seconds
+      // console.log("elapsed: ", elapsed);
+      setCallDuration(elapsed);
+    }, 1000); // Update every 1000ms for smooth display
+    
     setCallTimer(timer);
   };
 
@@ -136,6 +155,7 @@ function VoicePage() {
       setCallTimer(null);
     }
     setCallDuration(0);
+    setCallStartTime(null);
   };
 
   useEffect(() => {
@@ -285,9 +305,18 @@ function VoicePage() {
     if (!incomingCall) return;
     
     try {
-      await hangupCall(incomingCall.callControlId);
+      await declineCall(incomingCall.callControlId);
       setIncomingCall(null);
-      dispatch(fetchCallLogs());
+      
+      // Refresh call logs after a short delay to allow backend webhook to process
+      setTimeout(() => {
+        dispatch(fetchCallLogs());
+      }, 500);
+      
+      // Also refresh again after webhook processes (in case first refresh was too fast)
+      setTimeout(() => {
+        dispatch(fetchCallLogs());
+      }, 1500);
     } catch (err) {
       console.error('Failed to decline call:', err);
     }
@@ -491,17 +520,33 @@ function VoicePage() {
                               {getInitials(otherNum)}
                             </div>
                             <div className="flex-grow-1">
-                              <div className="bg-slate-700 rounded p-3 mb-1">
+                              <div 
+                                className={`bg-slate-700 rounded p-3 mb-1 ${
+                                  log.status === 'declined' ? 'call-log-declined' : ''
+                                }`}
+                                style={log.status === 'declined' ? { 
+                                  border: '2px solid #dc3545',
+                                  borderColor: '#dc3545'
+                                } : {}}
+                              >
                                 <div className="d-flex justify-content-between align-items-start mb-2">
                                   <div className="text-white small">{callTime}</div>
                                 </div>
                                 <div className="text-white mb-2">
-                                  
-                                  You {log.direction === 'outbound' ? 'called' : 'received call from'} {otherNum}
+                                  {log.status === 'declined'
+                                    ? `You declined call from ${otherNum}`
+                                    : log.direction === 'outbound'
+                                    ? `You called ${otherNum}`
+                                    : `You received call from ${otherNum}`}
                                 </div>
-                                {duration && (
+                                {duration && log.status !== 'declined' && (
                                   <div className="text-slate-400 small">
                                     Lasted {duration} {endTime && `• Ended at ${endTime}`}
+                                  </div>
+                                )}
+                                {log.status === 'declined' && (
+                                  <div className="text-danger small fw-semibold">
+                                    Call declined
                                   </div>
                                 )}
                               </div>

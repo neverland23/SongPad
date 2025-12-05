@@ -8,6 +8,7 @@ const {
   answerCall,
   connectWebRTC,
   hangupCall,
+  declineCall,
   sendDTMF,
 } = require('../controllers/voiceController');
 
@@ -21,6 +22,7 @@ router.get('/logs', authMiddleware, listCallLogs);
 router.post('/calls/:callControlId/answer', authMiddleware, answerCall);
 router.post('/calls/:callControlId/connect-webrtc', authMiddleware, connectWebRTC);
 router.post('/calls/:callControlId/hangup', authMiddleware, hangupCall);
+router.post('/calls/:callControlId/decline', authMiddleware, declineCall);
 router.post('/calls/:callControlId/dtmf', authMiddleware, sendDTMF);
 
 module.exports = router;

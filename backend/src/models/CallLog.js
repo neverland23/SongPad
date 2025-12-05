@@ -5,7 +5,7 @@ const callLogSchema = new mongoose.Schema(
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     from: { type: String, required: true },
     to:   { type: String, required: true },
-    status: { type: String, default: 'initiated' }, // initiated, ringing, answered, completed, failed
+    status: { type: String, default: 'initiated' }, // initiated, ringing, answered, completed, failed, declined
     direction: { type: String, enum: ['outbound', 'inbound'], default: 'outbound' },
     durationSeconds: { type: Number },
     telnyxCallLegId: { type: String },

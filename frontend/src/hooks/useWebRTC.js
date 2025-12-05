@@ -60,6 +60,18 @@ export function useWebRTC() {
     }
   }, []);
 
+  const declineCall = useCallback(async (callControlId) => {
+    try {
+      await api.declineCall(callControlId);
+      setActiveCall(null);
+      setCallState('idle');
+      setIsMuted(false);
+    } catch (err) {
+      console.error('Error declining call:', err);
+      throw err;
+    }
+  }, []);
+
   const sendDTMF = useCallback(async (callControlId, digits) => {
     try {
       await api.sendDTMF(callControlId, digits);
@@ -82,6 +94,7 @@ export function useWebRTC() {
     answerCall,
     connectWebRTC,
     hangupCall,
+    declineCall,
     sendDTMF,
     toggleMute,
     setActiveCall,

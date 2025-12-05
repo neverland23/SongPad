@@ -113,6 +113,7 @@ export const api = {
   answerCall: (callControlId) => request(`/voice/calls/${callControlId}/answer`, { method: 'POST' }),
   connectWebRTC: (callControlId, clientState) => request(`/voice/calls/${callControlId}/connect-webrtc`, { method: 'POST', body: { client_state: clientState } }),
   hangupCall: (callControlId) => request(`/voice/calls/${callControlId}/hangup`, { method: 'POST' }),
+  declineCall: (callControlId) => request(`/voice/calls/${callControlId}/decline`, { method: 'POST' }),
   sendDTMF: (callControlId, digits) => request(`/voice/calls/${callControlId}/dtmf`, { method: 'POST', body: { digits } }),
 
   // SMS

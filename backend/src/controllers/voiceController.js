@@ -184,7 +184,17 @@ const voiceWebhookHandler = async (req, res) => {
       }
     } else if (eventType === 'call.hangup' || eventType === 'call.call-hangup') {
       if (log) {
-        log.status = 'completed';
+        // Check if this hangup is the result of a rejection
+        const isRejected = payload.reason === 'rejected' || 
+                          payload.status === 'rejected' || 
+                          payload.reject_reason ||
+                          log.status === 'declined';
+        
+        if (isRejected && log.status !== 'declined') {
+          log.status = 'declined';
+        } else if (!isRejected && log.status !== 'declined') {
+          log.status = 'completed';
+        }
         
         // Try to get duration from various possible field names
         let durationSeconds = null;
@@ -199,14 +209,15 @@ const voiceWebhookHandler = async (req, res) => {
         }
         
         // If duration is not provided by Telnyx, calculate it from timestamps
-        if (!durationSeconds && log.createdAt) {
+        // Only calculate duration if call wasn't declined
+        if (!durationSeconds && log.createdAt && log.status !== 'declined') {
           const now = new Date();
           const callStartTime = new Date(log.createdAt);
           durationSeconds = Math.floor((now - callStartTime) / 1000); // Convert milliseconds to seconds
         }
         
-        // Save duration if we have it
-        if (durationSeconds !== null && durationSeconds >= 0) {
+        // Save duration if we have it and call wasn't declined
+        if (durationSeconds !== null && durationSeconds >= 0 && log.status !== 'declined') {
           log.durationSeconds = durationSeconds;
         }
         
@@ -217,7 +228,25 @@ const voiceWebhookHandler = async (req, res) => {
       if (log?.user && global.wsServer) {
         global.wsServer.sendToUser(log.user.toString(), {
           type: 'CALL_ENDED',
-          data: { callControlId, from, to, durationSeconds: log?.durationSeconds },
+          data: { callControlId, from, to, durationSeconds: log?.durationSeconds, status: log?.status },
+        });
+      }
+    } else if (
+      eventType === 'call.rejected' || 
+      eventType === 'call.call-rejected' ||
+      eventType === 'call.reject' ||
+      eventType === 'call.call-reject'
+    ) {
+      if (log) {
+        log.status = 'declined';
+        await log.save();
+      }
+      
+      // Broadcast call rejected/declined event
+      if (log?.user && global.wsServer) {
+        global.wsServer.sendToUser(log.user.toString(), {
+          type: 'CALL_DECLINED',
+          data: { callControlId, from, to },
         });
       }
     } else if (eventType === 'call.failed' || eventType === 'call.call-failed') {
@@ -316,6 +345,25 @@ const hangupCall = async (req, res) => {
   }
 };
 
+// Call Control v2: Decline call using Telnyx reject endpoint
+const declineCall = async (req, res) => {
+  const { callControlId } = req.params;
+
+  if (!callControlId) {
+    return res.status(400).json({ message: 'callControlId is required' });
+  }
+
+  try {
+    // Use Telnyx reject endpoint
+    await telnyxClient.post(`/calls/${callControlId}/actions/reject`);
+    
+    res.json({ message: 'Call declined successfully' });
+  } catch (err) {
+    console.error('Decline call error', err.response?.data || err.message);
+    res.status(500).json({ message: 'Error declining call' });
+  }
+};
+
 // Call Control v2: Send DTMF
 const sendDTMF = async (req, res) => {
   const { callControlId } = req.params;
@@ -347,5 +395,6 @@ module.exports = {
   answerCall,
   connectWebRTC,
   hangupCall,
+  declineCall,
   sendDTMF,
 };

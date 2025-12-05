@@ -100,3 +100,9 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+/* Call log declined status styling */
+.call-log-declined {
+  border: 2px solid #dc3545 !important;
+  border-color: #dc3545 !important;
+}
