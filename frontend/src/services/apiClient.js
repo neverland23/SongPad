@@ -108,7 +108,12 @@ export const api = {
 
   // Voice
   initiateCall: (payload) => request('/voice/call', { method: 'POST', body: payload }),
+  initiateOutboundCall: (payload) => request('/voice/calls/outbound', { method: 'POST', body: payload }),
   getCallLogs: () => request('/voice/logs'),
+  answerCall: (callControlId) => request(`/voice/calls/${callControlId}/answer`, { method: 'POST' }),
+  connectWebRTC: (callControlId, clientState) => request(`/voice/calls/${callControlId}/connect-webrtc`, { method: 'POST', body: { client_state: clientState } }),
+  hangupCall: (callControlId) => request(`/voice/calls/${callControlId}/hangup`, { method: 'POST' }),
+  sendDTMF: (callControlId, digits) => request(`/voice/calls/${callControlId}/dtmf`, { method: 'POST', body: { digits } }),
 
   // SMS
   getContacts: () => request('/sms/contacts'),

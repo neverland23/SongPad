@@ -1,6 +1,7 @@
 const telnyxClient = require('../config/telnyxClient');
 const Message = require('../models/Message');
 const Notification = require('../models/Notification');
+const PhoneNumber = require('../models/PhoneNumber');
 
 const sendSms = async (req, res) => {
   const { from, to, text } = req.body;
@@ -91,8 +92,12 @@ const smsWebhookHandler = async (req, res) => {
 
       const contact = from;
 
+      // Find user by phone number
+      const phoneNumber = await PhoneNumber.findOne({ phoneNumber: to });
+      const userId = phoneNumber?.user || null;
+
       const msg = await Message.create({
-        user: null, // Unknown user; wire this up according to your tenancy model
+        user: userId,
         from,
         to,
         contact,
@@ -104,12 +109,25 @@ const smsWebhookHandler = async (req, res) => {
       });
 
       await Notification.create({
-        user: null,
+        user: userId,
         type: 'sms',
         title: 'Incoming SMS',
         message: `SMS from ${from}: ${text.slice(0, 80)}`,
         data: { from, to },
       });
+
+      // Broadcast inbound SMS event via WebSocket
+      if (userId && global.wsServer) {
+        global.wsServer.sendToUser(userId.toString(), {
+          type: 'INBOUND_SMS',
+          data: {
+            from,
+            to,
+            text,
+            messageId: msg._id.toString(),
+          },
+        });
+      }
     }
 
     res.status(200).json({ received: true });

@@ -107,6 +107,21 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 VOIP backend server running on port ${PORT}`);
 });
+
+// Initialize WebSocket Server
+let wsServer = null;
+try {
+  const WebSocketServer = require('./src/config/websocketServer');
+  // Attach WebSocket server to the HTTP server
+  wsServer = new WebSocketServer(server);
+  console.log(`📡 WebSocket server attached to HTTP server on path /ws`);
+  
+  // Make WebSocket server available globally for controllers
+  global.wsServer = wsServer;
+} catch (err) {
+  console.warn('WebSocket server initialization failed:', err.message);
+  console.warn('Continuing without WebSocket support');
+}
