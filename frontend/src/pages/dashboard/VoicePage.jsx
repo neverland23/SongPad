@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '../../app/hooks';
 import {
   fetchCallLogs,
@@ -26,7 +26,7 @@ function VoicePage() {
   const [selectedPhoneNumber, setSelectedPhoneNumber] = useState(null);
   const [incomingCall, setIncomingCall] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
-  const [callTimer, setCallTimer] = useState(null);
+  const callTimerRef = useRef(null);
   const [callStartTime, setCallStartTime] = useState(null);
   const [dialpadOpen, setDialpadOpen] = useState(false);
   const [fromNumber, setFromNumber] = useState('');
@@ -136,37 +136,42 @@ function VoicePage() {
 
   // Call duration timer - updates frequently for smooth display
   const startCallTimer = () => {
+    // Clear any existing timer first
+    if (callTimerRef.current) {
+      clearInterval(callTimerRef.current);
+    }
+    
     const startTime = Date.now();
     setCallStartTime(startTime);
     setCallDuration(0);
     
     const timer = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000); // Calculate elapsed seconds
-      // console.log("elapsed: ", elapsed);
       setCallDuration(elapsed);
     }, 1000); // Update every 1000ms for smooth display
     
-    setCallTimer(timer);
+    callTimerRef.current = timer;
   };
 
   const stopCallTimer = () => {
-    if (callTimer) {
-      clearInterval(callTimer);
-      setCallTimer(null);
+    if (callTimerRef.current) {
+      clearInterval(callTimerRef.current);
+      callTimerRef.current = null;
     }
     setCallDuration(0);
     setCallStartTime(null);
   };
 
   useEffect(() => {
-    if (callState === 'active' && !callTimer) {
+    if (callState === 'active' && !callTimerRef.current) {
       startCallTimer();
-    } else if (callState !== 'active' && callTimer) {
+    } else if (callState !== 'active' && callTimerRef.current) {
       stopCallTimer();
     }
     return () => {
-      if (callTimer) {
-        clearInterval(callTimer);
+      if (callTimerRef.current) {
+        clearInterval(callTimerRef.current);
+        callTimerRef.current = null;
       }
     };
   }, [callState]);
@@ -202,9 +207,16 @@ function VoicePage() {
   };
 
   const formatDuration = (seconds) => {
-    if (!seconds) return '';
+    if (!seconds || seconds <= 0) return '';
     const mins = Math.floor(seconds / 60);
-    return mins === 1 ? '1 min' : `${mins} min`;
+    const secs = seconds % 60;
+    if (mins === 0) {
+      return secs === 1 ? '1 sec' : `${secs} sec`;
+    } else if (secs === 0) {
+      return mins === 1 ? '1 min' : `${mins} min`;
+    } else {
+      return `${mins} min ${secs} sec`;
+    }
   };
 
   // Generate a simple hash from phone number for consistent mapping
@@ -282,6 +294,7 @@ function VoicePage() {
   const handleEndCall = async () => {
     if (activeCall) {
       try {
+        stopCallTimer(); // Stop timer immediately when call ends
         await hangupCall(activeCall.callControlId);
         dispatch(fetchCallLogs()); // Refresh call logs
       } catch (err) {
@@ -539,7 +552,7 @@ function VoicePage() {
                                     ? `You called ${otherNum}`
                                     : `You received call from ${otherNum}`}
                                 </div>
-                                {duration && log.status !== 'declined' && (
+                                {log.durationSeconds > 0 && log.status !== 'declined' && (
                                   <div className="text-slate-400 small">
                                     Lasted {duration} {endTime && `• Ended at ${endTime}`}
                                   </div>
