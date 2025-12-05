@@ -238,6 +238,36 @@ const listMyNumbers = async (req, res) => {
         };
       })
     );
+    // Transform database records to match the UI format
+    const transformedNumbers = numbers.map((num) => {
+      // Use rawNumberDetails if available (contains full phone number details from search)
+      // Otherwise fall back to rawTelnyxData or construct from basic fields
+      const rawNumberDetails = num.rawNumberDetails || {};
+      
+      // Extract features - could be array of objects {name: "voice"} or array of strings
+      let features = rawNumberDetails.features || [];
+      if (features.length > 0 && typeof features[0] === 'string') {
+        features = features.map((f) => ({ name: f }));
+      }
+      if (features.length === 0 && num.capabilities && num.capabilities.length > 0) {
+        features = num.capabilities.map((cap) => ({ name: cap }));
+      }
+      
+      return {
+        _id: num._id,
+        phone_number: num.phoneNumber,
+        phone_number_id: num.telnyxNumberId,
+        region_information: rawNumberDetails.region_information || [],
+        features: features,
+        cost_information: rawNumberDetails.cost_information || {
+          monthly_cost: num.monthlyCost?.toString() || '0',
+          currency: 'USD',
+        },
+        status: 'active', // Default status for database records
+        created_at: num.createdAt,
+        createdAt: num.createdAt,
+      };
+    });
 
     res.json(transformedNumbers);
   } catch (err) {
