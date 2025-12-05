@@ -417,7 +417,7 @@ function NumbersPage() {
                           {num.status}
                         </span>
                       )}
-                      {num.phone_number_status === 'active' && (
+                      {num.phone_number_connection_id && (
                         <span className="badge bg-info">
                           Voice call enabled
                         </span>
