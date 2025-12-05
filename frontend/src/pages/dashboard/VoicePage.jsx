@@ -24,6 +24,11 @@ function VoicePage() {
   const myNumbers = useAppSelector(selectMyNumbers);
   const loadingMyNumbers = useAppSelector((state) => state.numbers.loadingMyNumbers);
 
+  // Filter numbers to only show those with connection_id
+  const numbersWithConnection = myNumbers.filter(
+    (num) => num.phone_number_connection_id !== null && num.phone_number_connection_id !== undefined
+  );
+
   const [dial, setDial] = useState('');
   const [fromNumber, setFromNumber] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
@@ -95,7 +100,7 @@ function VoicePage() {
                   disabled={loadingMyNumbers}
                 >
                   <option value="">Select your Telnyx number</option>
-                  {myNumbers.map((num) => {
+                  {numbersWithConnection.map((num) => {
                     const phoneNumber = num.phone_number || num.phoneNumber || '';
                     return (
                       <option key={num._id || phoneNumber} value={phoneNumber}>
@@ -107,9 +112,9 @@ function VoicePage() {
                 {loadingMyNumbers && (
                   <small className="text-muted">Loading your numbers...</small>
                 )}
-                {!loadingMyNumbers && myNumbers.length === 0 && (
+                {!loadingMyNumbers && numbersWithConnection.length === 0 && (
                   <small className="text-warning">
-                    No purchased numbers available. Please purchase a number first.
+                    No voice-enabled numbers available. Please enable voice call for a number first.
                   </small>
                 )}
               </div>
