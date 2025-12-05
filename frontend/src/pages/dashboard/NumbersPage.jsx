@@ -5,6 +5,7 @@ import {
   fetchCountries,
   fetchMyNumbers,
   searchNumbers,
+  enableVoiceCall,
   deleteNumber,
   selectCountries,
   selectAvailableNumbers,
@@ -93,6 +94,7 @@ function NumbersPage() {
   const loadingAvailable = useAppSelector((state) => state.numbers.loadingAvailable);
   const loadingMyNumbers = useAppSelector((state) => state.numbers.loadingMyNumbers);
   const deleting = useAppSelector((state) => state.numbers.deleting);
+  const enablingVoice = useAppSelector((state) => state.numbers.enablingVoice);
   
   const [deleteModal, setDeleteModal] = useState({ show: false, number: null });
 
@@ -150,6 +152,19 @@ function NumbersPage() {
 
   const handleDeleteCancel = () => {
     setDeleteModal({ show: false, number: null });
+  };
+
+  const handleEnableVoiceCall = async (number) => {
+    const phoneNumber = number.phone_number || number.phoneNumber;
+    if (!phoneNumber) return;
+
+    try {
+      await dispatch(enableVoiceCall(phoneNumber));
+      // Refresh the list after enabling voice call
+      dispatch(fetchMyNumbers());
+    } catch (err) {
+      console.error('Failed to enable voice call:', err);
+    }
   };
 
   const getStatusBadgeColor = (status) => {
@@ -237,7 +252,7 @@ function NumbersPage() {
         <div className="table-responsive">
           <div
             style={{
-              maxHeight: '200px',
+              maxHeight: '600px',
               overflowY: 'auto',
               border: '1px solid rgba(255, 255, 255, 0.1)',
             }}
@@ -249,7 +264,7 @@ function NumbersPage() {
                   <th>Country</th>
                   <th>State</th>
                   <th>City / Rate Center</th>
-                  <th>Features (Voice, SMS)</th>
+                  <th>Features</th>
                   <th>Fax</th>
                   <th>Monthly Cost</th>
                   <th>Upfront Cost</th>
@@ -289,7 +304,7 @@ function NumbersPage() {
                       ${getMonthlyCost(num)}/month
                     </span>
                     {num.cost_information?.currency && (
-                      <span className="text-muted small ms-1">
+                      <span className="text-white fw-bold small ms-1">
                         {num.cost_information.currency}
                       </span>
                     )}
@@ -333,7 +348,7 @@ function NumbersPage() {
         <div className="table-responsive">
           <div
             style={{
-              maxHeight: '200px',
+              maxHeight: '600px',
               overflowY: 'auto',
               border: '1px solid rgba(255, 255, 255, 0.1)',
             }}
@@ -345,7 +360,7 @@ function NumbersPage() {
                   <th>Country</th>
                   <th>State</th>
                   <th>City / Rate Center</th>
-                  <th>Features (Voice, SMS)</th>
+                  <th>Features</th>
                   <th>Fax</th>
                   <th>Monthly Cost</th>
                   <th>Status</th>
@@ -390,19 +405,24 @@ function NumbersPage() {
                       ${getMonthlyCost(num)}/month
                     </span>
                     {num.cost_information?.currency && (
-                      <span className="text-muted small ms-1">
+                      <span className="text-white fw-bold small ms-1">
                         {num.cost_information.currency}
                       </span>
                     )}
                   </td>
                   <td>
-                    {num.status ? (
-                      <span className={`badge ${getStatusBadgeColor(num.status)}`}>
-                        {num.status}
-                      </span>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
+                    <div className="d-flex flex-column gap-1">
+                      {num.status && (
+                        <span className={`badge ${getStatusBadgeColor(num.status)}`}>
+                          {num.status}
+                        </span>
+                      )}
+                      {num.phone_number_status === 'active' && (
+                        <span className="badge bg-info">
+                          Voice call enabled
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td>
                     {num.created_at
@@ -412,16 +432,28 @@ function NumbersPage() {
                       : '—'}
                   </td>
                   <td className="text-center">
-                    {!isDeletedStatus(num.status) && (
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-success"
-                        onClick={() => handleDeleteClick(num)}
-                        disabled={deleting}
-                      >
-                        Cancel
-                      </button>
-                    )}
+                    <div className="d-flex flex-column gap-1 align-items-center">
+                      {!isDeletedStatus(num.status) && (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-success"
+                          onClick={() => handleDeleteClick(num)}
+                          disabled={deleting}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      {!num.phone_number_connection_id && (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary"
+                          onClick={() => handleEnableVoiceCall(num)}
+                          disabled={enablingVoice}
+                        >
+                          {enablingVoice ? 'Enabling...' : 'Enable Voice Call'}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

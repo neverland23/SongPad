@@ -103,6 +103,7 @@ export const api = {
   },
   orderNumber: (payload) => request('/numbers/order', { method: 'POST', body: payload }),
   getMyNumbers: () => request('/numbers/mine'),
+  enableVoiceCall: (phoneNumber) => request('/numbers/enable-voice', { method: 'PATCH', body: { phoneNumber } }),
   deleteNumber: (phoneNumberId) => request(`/numbers/${phoneNumberId}`, { method: 'DELETE' }),
 
   // Voice
