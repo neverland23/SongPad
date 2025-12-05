@@ -28,3 +28,75 @@ body {
 #notificationsDropdown.show {
   display: block;
 }
+
+/* Navbar toggler for mobile */
+.navbar-toggler {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.25rem 0.5rem;
+}
+
+.navbar-toggler-icon {
+  display: inline-block;
+  width: 1.5em;
+  height: 1.5em;
+  vertical-align: middle;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.85%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100%;
+}
+
+/* Navigation link hover effects */
+.navbar-nav .nav-link {
+  transition: all 0.2s ease;
+  border-radius: 0.375rem;
+}
+
+.navbar-nav .nav-link:not(.active):hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #ffffff !important;
+}
+
+.navbar-nav .nav-link.active {
+  pointer-events: none;
+}
+
+/* TopNav styles */
+@media (max-width: 991.98px) {
+  .navbar {
+    flex-wrap: wrap;
+  }
+  
+  .navbar .container-fluid {
+    flex-wrap: wrap;
+  }
+}
+
+/* Voice page call history sidebar - custom styles */
+.voice-history-item {
+  width: 100%;
+  border: none;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  cursor: pointer;
+  background-color: #1e293b; /* slate-800 */
+  color: #e2e8f0; /* slate-200 */
+  transition: background-color 0.2s ease;
+}
+
+.voice-history-item.selected {
+  background-color: #475569; /* slate-700 */
+  color: #ffffff;
+}
+
+.voice-history-item:focus,
+.voice-history-item:focus-visible,
+.voice-history-item:focus-within {
+  outline: none;
+  box-shadow: none;
+}
+
+.voice-history-list {
+  display: flex;
+  flex-direction: column;
+}

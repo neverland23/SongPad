@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '../../app/hooks';
 import {
   fetchCallLogs,
@@ -12,10 +12,10 @@ import {
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { useWebRTC } from '../../hooks/useWebRTC';
 import IncomingCallPopup from '../../components/voice/IncomingCallPopup';
+import CallControlModal from '../../components/voice/CallControlModal';
+import DialpadModal from '../../components/voice/DialpadModal';
 import Loader from '../../components/ui/Loader';
 import ErrorMessage from '../../components/ui/ErrorMessage';
-
-const dialDigits = ['1','2','3','4','5','6','7','8','9','*','0','#'];
 
 function VoicePage() {
   const dispatch = useAppDispatch();
@@ -23,19 +23,12 @@ function VoicePage() {
   const error = useAppSelector(selectVoiceError);
   const loadingLogs = useAppSelector((state) => state.voice.loadingLogs);
   const myNumbers = useAppSelector(selectMyNumbers);
-  const loadingMyNumbers = useAppSelector((state) => state.numbers.loadingMyNumbers);
-
-  // Filter numbers to only show those with connection_id
-  const numbersWithConnection = myNumbers.filter(
-    (num) => num.phone_number_connection_id !== null && num.phone_number_connection_id !== undefined
-  );
-
-  const [dial, setDial] = useState('');
-  const [fromNumber, setFromNumber] = useState('');
-  const [statusMessage, setStatusMessage] = useState('');
+  const [selectedPhoneNumber, setSelectedPhoneNumber] = useState(null);
   const [incomingCall, setIncomingCall] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
   const [callTimer, setCallTimer] = useState(null);
+  const [dialpadOpen, setDialpadOpen] = useState(false);
+  const [fromNumber, setFromNumber] = useState('');
 
   // WebRTC hook
   const {
@@ -44,7 +37,6 @@ function VoicePage() {
     isMuted,
     makeCall,
     answerCall,
-    connectWebRTC,
     hangupCall,
     sendDTMF,
     toggleMute,
@@ -74,8 +66,9 @@ function VoicePage() {
     } else if (message.type === 'CALL_ENDED' && activeCall?.callControlId === message.data.callControlId) {
       setCallState('idle');
       stopCallTimer();
+      dispatch(fetchCallLogs()); // Refresh call logs
     }
-  }, [activeCall, setCallState]);
+  }, [activeCall, setCallState, setActiveCall, dispatch]);
 
   const { isConnected: wsConnected } = useWebSocket(handleWebSocketMessage);
 
@@ -83,6 +76,50 @@ function VoicePage() {
     dispatch(fetchCallLogs());
     dispatch(fetchMyNumbers());
   }, [dispatch]);
+
+  // Get user's phone numbers for identifying "Dialpad" number
+  const userPhoneNumbers = useMemo(() => {
+    return myNumbers
+      .filter(num => num.phone_number_connection_id)
+      .map(num => num.phone_number || num.phoneNumber)
+      .filter(Boolean);
+  }, [myNumbers]);
+
+  // Extract unique phone numbers from call logs (the "other" party)
+  const phoneNumberList = useMemo(() => {
+    const numbers = new Set();
+    logs.forEach(log => {
+      // For outbound calls, "to" is the other party
+      // For inbound calls, "from" is the other party
+      const otherNumber = log.direction === 'outbound' ? log.to : log.from;
+      if (otherNumber && !userPhoneNumbers.includes(otherNumber)) {
+        numbers.add(otherNumber);
+      }
+    });
+    return Array.from(numbers).sort();
+  }, [logs, userPhoneNumbers]);
+
+  // Get call logs for selected phone number
+  const filteredLogs = useMemo(() => {
+    if (!selectedPhoneNumber) return [];
+    return logs
+      .filter(log => {
+        const otherNumber = log.direction === 'outbound' ? log.to : log.from;
+        return otherNumber === selectedPhoneNumber;
+      })
+      .sort((a, b) => {
+        const timeA = new Date(a.createdAt || a.created_at || 0).getTime();
+        const timeB = new Date(b.createdAt || b.created_at || 0).getTime();
+        return timeB - timeA; // Most recent first
+      });
+  }, [logs, selectedPhoneNumber]);
+
+  // Auto-select first phone number if none selected
+  useEffect(() => {
+    if (!selectedPhoneNumber && phoneNumberList.length > 0) {
+      setSelectedPhoneNumber(phoneNumberList[0]);
+    }
+  }, [phoneNumberList, selectedPhoneNumber]);
 
   // Call duration timer
   const startCallTimer = () => {
@@ -114,39 +151,111 @@ function VoicePage() {
     };
   }, [callState]);
 
-  const formatDuration = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  const formatTime = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
   };
 
-  const handleDigit = (d) => {
-    if (callState === 'active' && activeCall) {
-      // Send DTMF during active call
-      sendDTMF(activeCall.callControlId, d);
-    } else {
-      // Add to dial string
-      setDial((prev) => prev + d);
-    }
-  };
-
-  const handleCall = async () => {
-    if (!dial || !fromNumber) {
-      setStatusMessage('Please enter the destination number and select your Telnyx number from the dropdown.');
-      return;
-    }
-    if (callState !== 'idle') {
-      setStatusMessage('A call is already in progress.');
-      return;
-    }
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
     
-    setStatusMessage('');
-    try {
-      await makeCall(fromNumber, dial);
-      setStatusMessage('Call initiated successfully.');
-      setDial('');
-    } catch (err) {
-      setStatusMessage(err.message || 'Failed to initiate call.');
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
+      });
+    }
+  };
+
+  const formatDuration = (seconds) => {
+    if (!seconds) return '';
+    const mins = Math.floor(seconds / 60);
+    return mins === 1 ? '1 min' : `${mins} min`;
+  };
+
+  // Generate a simple hash from phone number for consistent mapping
+  const hashPhoneNumber = (phoneNumber) => {
+    if (!phoneNumber) return 0;
+    const cleaned = phoneNumber.replace(/\D/g, '');
+    let hash = 0;
+    for (let i = 0; i < cleaned.length; i++) {
+      const char = cleaned.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash);
+  };
+
+  // Generate meaningful initials from phone number
+  const getInitials = (phoneNumber) => {
+    if (!phoneNumber) return '??';
+    
+    const hash = hashPhoneNumber(phoneNumber);
+    
+    // Common first name initials
+    const firstInitials = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+    
+    // Common last name initials (slightly different distribution)
+    const lastInitials = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'R', 'S', 'T', 'W', 'Y', 'Z'];
+    
+    // Use hash to pick consistent initials
+    const firstIndex = hash % firstInitials.length;
+    const secondIndex = (hash * 7) % lastInitials.length; // Different multiplier for variety
+    
+    return firstInitials[firstIndex] + lastInitials[secondIndex];
+  };
+
+  // Generate consistent background color from phone number
+  const getAvatarColor = (phoneNumber) => {
+    if (!phoneNumber) return '#64748b';
+    
+    const hash = hashPhoneNumber(phoneNumber);
+    
+    // Predefined palette of vibrant, readable colors
+    const colorPalette = [
+      '#3b82f6', // Blue
+      '#8b5cf6', // Purple
+      '#ec4899', // Pink
+      '#f59e0b', // Orange
+      '#10b981', // Green
+      '#06b6d4', // Cyan
+      '#ef4444', // Red
+      '#6366f1', // Indigo
+      '#14b8a6', // Teal
+      '#f97316', // Orange-red
+      '#84cc16', // Lime
+      '#a855f7', // Purple
+      '#0ea5e9', // Sky blue
+      '#f43f5e', // Rose
+      '#22c55e', // Green
+      '#eab308', // Yellow
+    ];
+    
+    // Use hash to pick a consistent color
+    const colorIndex = hash % colorPalette.length;
+    return colorPalette[colorIndex];
+  };
+
+  const getMyNumber = (log) => {
+    // Determine which number is "ours" (Dialpad number)
+    if (log.direction === 'outbound') {
+      return log.from;
+    } else {
+      return log.to;
     }
   };
 
@@ -154,10 +263,9 @@ function VoicePage() {
     if (activeCall) {
       try {
         await hangupCall(activeCall.callControlId);
-        setStatusMessage('Call ended.');
         dispatch(fetchCallLogs()); // Refresh call logs
       } catch (err) {
-        setStatusMessage(err.message || 'Failed to end call.');
+        console.error('Failed to end call:', err);
       }
     }
   };
@@ -167,12 +275,9 @@ function VoicePage() {
     
     try {
       await answerCall(incomingCall.callControlId);
-      // Optionally connect to WebRTC
-      // await connectWebRTC(incomingCall.callControlId, '');
       setIncomingCall(null);
-      setStatusMessage('Call answered.');
     } catch (err) {
-      setStatusMessage(err.message || 'Failed to answer call.');
+      console.error('Failed to answer call:', err);
     }
   };
 
@@ -182,23 +287,39 @@ function VoicePage() {
     try {
       await hangupCall(incomingCall.callControlId);
       setIncomingCall(null);
-      setStatusMessage('Call declined.');
       dispatch(fetchCallLogs());
     } catch (err) {
-      setStatusMessage(err.message || 'Failed to decline call.');
+      console.error('Failed to decline call:', err);
+    }
+  };
+
+  const handleCallClick = () => {
+    if (selectedPhoneNumber) {
+      setDialpadOpen(true);
+    }
+  };
+
+  const handleDialpadCall = async (dial, from) => {
+    try {
+      await makeCall(from, dial);
+      setDialpadOpen(false);
+      dispatch(fetchCallLogs()); // Refresh to show new call
+    } catch (err) {
+      console.error('Failed to make call:', err);
     }
   };
 
   return (
-    <section id="voiceSection">
-      <h2 className="h5 mb-3">Voice Call</h2>
-      
+    <section id="voiceSection" className="d-flex flex-column" style={{ height: '100%', margin: '-1rem', padding: '1rem' }}>
       {/* WebSocket connection indicator */}
       {!wsConnected && (
-        <div className="alert alert-warning mb-3">
+        <div className="alert alert-warning mb-2">
           <small>WebSocket disconnected. Real-time features may not work.</small>
         </div>
       )}
+
+      {/* Remote Audio Element (hidden) */}
+      <audio ref={remoteAudioRef} autoPlay />
 
       {/* Incoming Call Popup */}
       <IncomingCallPopup
@@ -207,166 +328,203 @@ function VoicePage() {
         onDecline={handleDeclineIncomingCall}
       />
 
-      <div className="row g-4">
-        <div className="col-md-4">
-          <div className="card bg-slate-800">
-            <div className="card-body">
-              <h5 className="card-title text-white">Dialpad</h5>
-              
-              {/* Call Status */}
-              {callState !== 'idle' && (
-                <div className="mb-3 p-2 bg-dark rounded">
-                  <div className="d-flex justify-content-between align-items-center">
-                    <div>
-                      <small className="text-muted">Status:</small>
-                      <span className="ms-2 badge bg-info">{callState}</span>
-                    </div>
-                    {callState === 'active' && (
-                      <div>
-                        <small className="text-muted">Duration:</small>
-                        <span className="ms-2 text-white fw-bold">{formatDuration(callDuration)}</span>
-                      </div>
-                    )}
-                  </div>
-                  {activeCall && (
-                    <div className="mt-2">
-                      <small className="text-muted">To: </small>
-                      <span className="text-white">{activeCall.to}</span>
-                    </div>
-                  )}
-                </div>
-              )}
+      {/* Call Control Modal - Shows during active calls */}
+      <CallControlModal
+        isOpen={callState === 'active'}
+        callState={callState}
+        activeCall={activeCall}
+        callDuration={callDuration}
+        isMuted={isMuted}
+        onMute={toggleMute}
+        onEndCall={handleEndCall}
+        onSendDTMF={sendDTMF}
+      />
 
-              {/* Remote Audio Element (hidden) */}
-              <audio ref={remoteAudioRef} autoPlay />
+      {/* Dialpad Modal */}
+      <DialpadModal
+        isOpen={dialpadOpen}
+        onClose={() => setDialpadOpen(false)}
+        onCall={handleDialpadCall}
+        fromNumber={fromNumber}
+        setFromNumber={setFromNumber}
+        callState={callState}
+        initialDial={selectedPhoneNumber || ''}
+      />
 
-              <div className="mb-3">
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Enter number"
-                  value={dial}
-                  onChange={(e) => setDial(e.target.value)}
-                  disabled={callState !== 'idle'}
-                />
-              </div>
-              
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                {dialDigits.map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    className="btn btn-outline-light"
-                    onClick={() => handleDigit(d)}
-                    disabled={callState === 'ringing'}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
-              
-              <div className="mb-3">
-                <label className="form-label text-white">From Number</label>
-                <select
-                  className="form-select"
-                  value={fromNumber}
-                  onChange={(e) => setFromNumber(e.target.value)}
-                  disabled={loadingMyNumbers || callState !== 'idle'}
-                >
-                  <option value="">Select your Telnyx number</option>
-                  {numbersWithConnection.map((num) => {
-                    const phoneNumber = num.phone_number || num.phoneNumber || '';
-                    return (
-                      <option key={num._id || phoneNumber} value={phoneNumber}>
-                        {phoneNumber}
-                      </option>
-                    );
-                  })}
-                </select>
-                {loadingMyNumbers && (
-                  <small className="text-muted">Loading your numbers...</small>
-                )}
-                {!loadingMyNumbers && numbersWithConnection.length === 0 && (
-                  <small className="text-warning">
-                    No voice-enabled numbers available. Please enable voice call for a number first.
-                  </small>
-                )}
-              </div>
-              
-              <div className="d-flex gap-2">
-                {callState === 'idle' ? (
-                  <button
-                    type="button"
-                    className="btn btn-success flex-fill"
-                    onClick={handleCall}
-                    disabled={!dial || !fromNumber}
-                  >
-                    Call
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className={`btn ${isMuted ? 'btn-warning' : 'btn-outline-warning'} flex-fill`}
-                      onClick={toggleMute}
-                    >
-                      {isMuted ? 'Unmute' : 'Mute'}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-danger flex-fill"
-                      onClick={handleEndCall}
-                    >
-                      End Call
-                    </button>
-                  </>
-                )}
-              </div>
-              
-              <p className="small mt-2 text-slate-300">{statusMessage}</p>
-              <ErrorMessage message={error} />
+      {/* Two Column Layout */}
+      <div className="d-flex flex-grow-1" style={{ minHeight: 0 }}>
+        {/* Left Sidebar - Phone Number List */}
+        <div 
+          className="bg-slate-800 border-end border-slate-700"
+          style={{ width: '300px', minWidth: '300px', overflowY: 'auto' }}
+        >
+          <div className="p-3 border-bottom border-slate-700">
+            <h5 className="text-white mb-0">Call History</h5>
+          </div>
+          
+          {loadingLogs ? (
+            <div className="p-3">
+              <Loader label="Loading..." />
             </div>
-          </div>
+          ) : phoneNumberList.length === 0 ? (
+            <div className="p-3 text-slate-400 text-center">
+              <small>No call history yet</small>
+            </div>
+          ) : (
+            <div className="voice-history-list">
+              {phoneNumberList.map((phoneNumber) => {
+                const phoneLogs = logs.filter(log => {
+                  const otherNumber = log.direction === 'outbound' ? log.to : log.from;
+                  return otherNumber === phoneNumber;
+                });
+                const lastLog = phoneLogs[0]; // Most recent
+                const initials = getInitials(phoneNumber);
+                const avatarColor = getAvatarColor(phoneNumber);
+                
+                return (
+                  <button
+                    key={phoneNumber}
+                    type="button"
+                    className={`voice-history-item ${
+                      selectedPhoneNumber === phoneNumber ? 'selected' : ''
+                    }`}
+                    onClick={() => setSelectedPhoneNumber(phoneNumber)}
+                  >
+                    <div className="d-flex align-items-center gap-3">
+                      <div
+                        className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
+                        style={{
+                          width: '40px',
+                          height: '40px',
+                          backgroundColor: avatarColor,
+                          fontSize: '0.875rem',
+                        }}
+                      >
+                        {initials}
+                      </div>
+                      <div className="flex-grow-1 text-start">
+                        <div className="fw-semibold">{phoneNumber}</div>
+                        {lastLog && (
+                          <div className="small text-slate-400">
+                            {lastLog.direction === 'outbound' ? 'You called' : 'Called you'} • {formatTime(lastLog.createdAt || lastLog.created_at)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
-        
-        <div className="col-md-8">
-          <h5>Call Logs</h5>
-          {loadingLogs && <Loader label="Loading call logs..." />}
-          <div className="table-responsive">
-            <table className="table table-dark table-striped" id="callLogsTable">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>From</th>
-                  <th>To</th>
-                  <th>Status</th>
-                  <th>Direction</th>
-                  <th>Duration (s)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="text-center text-slate-400 small">
-                      No calls found yet.
-                    </td>
-                  </tr>
+
+        {/* Right Panel - Call Logs */}
+        <div className="flex-grow-1 d-flex flex-column bg-slate-900" style={{ minWidth: 0 }}>
+          {selectedPhoneNumber ? (
+            <>
+              {/* Top Bar */}
+              <div className="bg-slate-800 border-bottom border-slate-700 px-4 py-3 d-flex justify-content-between align-items-center">
+                <div className="d-flex align-items-center gap-3">
+                  <div
+                    className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      backgroundColor: getAvatarColor(selectedPhoneNumber),
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    {getInitials(selectedPhoneNumber)}
+                  </div>
+                  <div>
+                    <div className="text-white fw-semibold">{selectedPhoneNumber}</div>
+                    <div className="text-slate-400 small">Other</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleCallClick}
+                  disabled={callState !== 'idle'}
+                >
+                  Call
+                </button>
+              </div>
+
+              {/* Call Logs */}
+              <div className="flex-grow-1 overflow-auto px-4 py-3">
+                {filteredLogs.length === 0 ? (
+                  <div className="text-center text-slate-400 py-5">
+                    <p>No calls with this number yet</p>
+                  </div>
+                ) : (
+                  <div className="d-flex flex-column gap-3">
+                    {filteredLogs.map((log, index) => {
+                      const myNum = getMyNumber(log);
+                      const otherNum = log.direction === 'outbound' ? log.to : log.from;
+                      const callTime = formatTime(log.createdAt || log.created_at);
+                      const callDate = formatDate(log.createdAt || log.created_at);
+                      const duration = formatDuration(log.durationSeconds);
+                      const endTime = log.durationSeconds 
+                        ? formatTime(new Date(new Date(log.createdAt || log.created_at).getTime() + (log.durationSeconds * 1000)))
+                        : '';
+                      const showDateHeader = index === 0 || 
+                        formatDate(filteredLogs[index - 1]?.createdAt || filteredLogs[index - 1]?.created_at) !== callDate;
+
+                      return (
+                        <React.Fragment key={log._id}>
+                          {showDateHeader && (
+                            <div className="text-center text-slate-400 small my-2">
+                              {callDate}
+                            </div>
+                          )}
+                          <div className="d-flex gap-3">
+                            <div
+                              className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
+                              style={{
+                                width: '40px',
+                                height: '40px',
+                                backgroundColor: getAvatarColor(otherNum),
+                                fontSize: '0.875rem',
+                              }}
+                            >
+                              {getInitials(otherNum)}
+                            </div>
+                            <div className="flex-grow-1">
+                              <div className="bg-slate-700 rounded p-3 mb-1">
+                                <div className="d-flex justify-content-between align-items-start mb-2">
+                                  <div className="text-white small">{callTime}</div>
+                                </div>
+                                <div className="text-white mb-2">
+                                  
+                                  You {log.direction === 'outbound' ? 'called' : 'received call from'} {otherNum}
+                                </div>
+                                {duration && (
+                                  <div className="text-slate-400 small">
+                                    Lasted {duration} {endTime && `• Ended at ${endTime}`}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
                 )}
-                {logs.map((log) => (
-                  <tr key={log._id}>
-                    <td>{log.createdAt ? new Date(log.createdAt).toLocaleString() : ''}</td>
-                    <td>{log.from}</td>
-                    <td>{log.to}</td>
-                    <td>{log.status}</td>
-                    <td>{log.direction}</td>
-                    <td>{log.durationSeconds ?? '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-grow-1 d-flex align-items-center justify-content-center">
+              <div className="text-center text-slate-400">
+                <p>Select a phone number to view call history</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      <ErrorMessage message={error} />
     </section>
   );
 }
