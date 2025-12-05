@@ -179,41 +179,130 @@ const listMyNumbers = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Transform database records to match the UI format
-    const transformedNumbers = numbers.map((num) => {
-      // Use rawNumberDetails if available (contains full phone number details from search)
-      // Otherwise fall back to rawTelnyxData or construct from basic fields
-      const rawNumberDetails = num.rawNumberDetails || {};
-      
-      // Extract features - could be array of objects {name: "voice"} or array of strings
-      let features = rawNumberDetails.features || [];
-      if (features.length > 0 && typeof features[0] === 'string') {
-        features = features.map((f) => ({ name: f }));
-      }
-      if (features.length === 0 && num.capabilities && num.capabilities.length > 0) {
-        features = num.capabilities.map((cap) => ({ name: cap }));
-      }
-      
-      return {
-        _id: num._id,
-        phone_number: num.phoneNumber,
-        phone_number_id: num.telnyxNumberId,
-        region_information: rawNumberDetails.region_information || [],
-        features: features,
-        cost_information: rawNumberDetails.cost_information || {
-          monthly_cost: num.monthlyCost?.toString() || '0',
-          currency: 'USD',
-        },
-        status: 'active', // Default status for database records
-        created_at: num.createdAt,
-        createdAt: num.createdAt,
-      };
-    });
+    // Transform database records to match the UI format and fetch number order details
+    const transformedNumbers = await Promise.all(
+      numbers.map(async (num) => {
+        // Use rawNumberDetails if available (contains full phone number details from search)
+        // Otherwise fall back to rawTelnyxData or construct from basic fields
+        const rawNumberDetails = num.rawNumberDetails || {};
+        
+        // Extract features - could be array of objects {name: "voice"} or array of strings
+        let features = rawNumberDetails.features || [];
+        if (features.length > 0 && typeof features[0] === 'string') {
+          features = features.map((f) => ({ name: f }));
+        }
+        if (features.length === 0 && num.capabilities && num.capabilities.length > 0) {
+          features = num.capabilities.map((cap) => ({ name: cap }));
+        }
+        
+        let phone_number_status = null;
+        let phone_number_connection_id = null;
+
+        // Fetch phone number resource using phone number as filter parameter
+        if (num.phoneNumber) {
+          try {
+            const phoneNumbersResponse = await telnyxClient.get('/phone_numbers', {
+              params: {
+                'filter[phone_number]': num.phoneNumber,
+              },
+            });
+
+            const phoneNumbers = phoneNumbersResponse.data?.data || [];
+            
+            if (phoneNumbers.length > 0) {
+              const phoneNumberResource = phoneNumbers[0];
+              phone_number_status = phoneNumberResource.status || null;
+              phone_number_connection_id = phoneNumberResource.connection_id || null;
+            }
+          } catch (phoneErr) {
+            console.warn(`Failed to fetch phone number details for ${num.phoneNumber}:`, phoneErr.message);
+            // Continue without phone number details if fetch fails
+          }
+        }
+        
+        return {
+          _id: num._id,
+          phone_number: num.phoneNumber,
+          phone_number_id: num.telnyxNumberId,
+          phone_number_status: phone_number_status,
+          phone_number_connection_id: phone_number_connection_id,
+          region_information: rawNumberDetails.region_information || [],
+          features: features,
+          cost_information: rawNumberDetails.cost_information || {
+            monthly_cost: num.monthlyCost?.toString() || '0',
+            currency: 'USD',
+          },
+          status: 'active', // Default status for database records
+          created_at: num.createdAt,
+          createdAt: num.createdAt,
+        };
+      })
+    );
 
     res.json(transformedNumbers);
   } catch (err) {
     console.error('List my numbers error', err);
     res.status(500).json({ message: 'Error fetching your numbers' });
+  }
+};
+
+const enableVoiceCall = async (req, res) => {
+  const { phoneNumber } = req.body;
+
+  if (!phoneNumber) {
+    return res.status(400).json({ message: 'phoneNumber is required' });
+  }
+
+  const connectionId = process.env.TELNYX_CONNECTION_ID;
+
+  if (!connectionId) {
+    return res.status(500).json({ message: 'TELNYX_CONNECTION_ID is not configured' });
+  }
+
+  try {
+    // Fetch the phone number resource using phone number as filter parameter
+    const phoneNumbersResponse = await telnyxClient.get('/phone_numbers', {
+      params: {
+        'filter[phone_number]': phoneNumber,
+      },
+    });
+
+    const phoneNumbers = phoneNumbersResponse.data?.data || [];
+    
+    if (phoneNumbers.length === 0) {
+      return res.status(404).json({ message: 'Phone number not found' });
+    }
+
+    // Get the phone number resource (should be first result)
+    const phoneNumberResource = phoneNumbers[0];
+    const phoneNumberResourceId = phoneNumberResource.id;
+
+    if (!phoneNumberResourceId) {
+      return res.status(400).json({ message: 'Phone number ID not found in response' });
+    }
+
+    // Assign the phone number to the connection using the phone number ID
+    await telnyxClient.patch(`/phone_numbers/${phoneNumberResourceId}`, {
+      connection_id: connectionId,
+    });
+
+    await Notification.create({
+      user: req.user._id,
+      type: 'number',
+      title: 'Voice call enabled',
+      message: `Voice call has been enabled for ${phoneNumber}`,
+      data: { phoneNumber, connectionId, phoneNumberResourceId },
+    });
+
+    res.json({ message: 'Voice call enabled successfully' });
+  } catch (err) {
+    console.error('Enable voice call error', err.response?.data || err.message);
+    
+    if (err.response?.status === 404) {
+      return res.status(404).json({ message: 'Phone number not found' });
+    }
+    
+    res.status(500).json({ message: 'Error enabling voice call' });
   }
 };
 
@@ -293,5 +382,6 @@ module.exports = {
   searchNumbers,
   orderNumber,
   listMyNumbers,
+  enableVoiceCall,
   deleteNumber,
 };

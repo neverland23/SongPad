@@ -6,6 +6,10 @@ import {
   selectCallLogs,
   selectVoiceError,
 } from '../../features/voice/voiceSlice';
+import {
+  fetchMyNumbers,
+  selectMyNumbers,
+} from '../../features/numbers/numbersSlice';
 import Loader from '../../components/ui/Loader';
 import ErrorMessage from '../../components/ui/ErrorMessage';
 
@@ -17,6 +21,13 @@ function VoicePage() {
   const error = useAppSelector(selectVoiceError);
   const loadingLogs = useAppSelector((state) => state.voice.loadingLogs);
   const calling = useAppSelector((state) => state.voice.calling);
+  const myNumbers = useAppSelector(selectMyNumbers);
+  const loadingMyNumbers = useAppSelector((state) => state.numbers.loadingMyNumbers);
+
+  // Filter numbers to only show those with connection_id
+  const numbersWithConnection = myNumbers.filter(
+    (num) => num.phone_number_connection_id !== null && num.phone_number_connection_id !== undefined
+  );
 
   const [dial, setDial] = useState('');
   const [fromNumber, setFromNumber] = useState('');
@@ -24,6 +35,7 @@ function VoicePage() {
 
   useEffect(() => {
     dispatch(fetchCallLogs());
+    dispatch(fetchMyNumbers());
   }, [dispatch]);
 
   const handleDigit = (d) => {
@@ -32,7 +44,7 @@ function VoicePage() {
 
   const handleCall = async () => {
     if (!dial || !fromNumber) {
-      setStatusMessage('Please enter both the destination number and your Telnyx number.');
+      setStatusMessage('Please enter the destination number and select your Telnyx number from the dropdown.');
       return;
     }
     setStatusMessage('');
@@ -57,7 +69,7 @@ function VoicePage() {
         <div className="col-md-4">
           <div className="card bg-slate-800">
             <div className="card-body">
-              <h5 className="card-title">Dialpad</h5>
+              <h5 className="card-title text-white">Dialpad</h5>
               <div className="mb-3">
                 <input
                   type="text"
@@ -80,13 +92,31 @@ function VoicePage() {
                 ))}
               </div>
               <div className="mb-3">
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="From number (your Telnyx number)"
+                <label className="form-label text-white">From Number</label>
+                <select
+                  className="form-select"
                   value={fromNumber}
                   onChange={(e) => setFromNumber(e.target.value)}
-                />
+                  disabled={loadingMyNumbers}
+                >
+                  <option value="">Select your Telnyx number</option>
+                  {numbersWithConnection.map((num) => {
+                    const phoneNumber = num.phone_number || num.phoneNumber || '';
+                    return (
+                      <option key={num._id || phoneNumber} value={phoneNumber}>
+                        {phoneNumber}
+                      </option>
+                    );
+                  })}
+                </select>
+                {loadingMyNumbers && (
+                  <small className="text-muted">Loading your numbers...</small>
+                )}
+                {!loadingMyNumbers && numbersWithConnection.length === 0 && (
+                  <small className="text-warning">
+                    No voice-enabled numbers available. Please enable voice call for a number first.
+                  </small>
+                )}
               </div>
               <button
                 type="button"
